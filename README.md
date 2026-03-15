@@ -1,0 +1,1 @@
+# Dometic-FWX4-IR-Sender-Homeassistant
