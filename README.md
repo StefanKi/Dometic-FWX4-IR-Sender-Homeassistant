@@ -47,3 +47,7 @@ Example see in **dashboard.yaml**
 My solution: https://makerworld.com/de/models/2528075-ir-sender-box-for-dometic-fwx4-remote-control#profileId-2781943
 
 The infrared LED must be unsoldered from the board. The LED is connected by short wires to the board afterwards. Now the LED is inserted and fixed with hot glue. This has the advantage, that the LED faces upwards to the receiver for better transmission. The board fits into the box and must be supplied. I used a long USB cable and plugged it into the raspberry running homeassistant.
+
+## VPN thoughts
+My solution:
+Our camper connects per VPN to the network at home. My smartphone connects to over VPN to the network at home. With the correct routing settings I now can control the FWX4 remotely independent of my location.
