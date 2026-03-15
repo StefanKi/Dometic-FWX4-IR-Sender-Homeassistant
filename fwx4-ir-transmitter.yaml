@@ -1,0 +1,297 @@
+esphome:
+  name: fwx4-ir-transmitter
+  friendly_name: fwx4_ir_transmitter
+
+esp8266:
+  board: esp01_1m
+
+logger:
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Fwx4-Ir-Transmitter"
+    password: ""
+
+captive_portal:
+
+api:
+  encryption:
+    key: ""
+  services:
+    - service: fwx4_send_ir
+      variables:
+        power: bool
+        nightmode: bool
+        ventilator_auto: bool
+        ventilator_speed: int
+        temperature: int
+        mode: string
+      then:
+        - lambda: |-
+            uint8_t _power = power ? 0xC : 0x4;
+            uint8_t _general = 0;
+            if (nightmode) _general |= 0x8;
+            if (!ventilator_auto) _general |= 0x4;
+            bool _dehumidify = (mode == "dehumidify");
+            if (!_dehumidify) _general |= 0x2;
+            _general |= 0x1;  // always 1
+            uint8_t _temperature = temperature - 16;
+
+            uint8_t _mode = 0;
+            if (mode == "auto") _mode = 0x0;
+            else if (mode == "dehumidify") _mode = 0x0;
+            else if (mode == "cool") _mode = 0x1;
+            else if (mode == "heat") _mode = 0x2;
+            else if (mode == "recirculation") _mode = 0x3;
+
+            uint8_t _vent = 0;
+            if (ventilator_speed == 1) _vent = 0x0;
+            else if (ventilator_speed == 2) _vent = 0x1;
+            else if (ventilator_speed == 3) _vent = 0x2;
+            uint8_t _vent_mode = (_vent << 2) | _mode;
+
+            uint32_t frame_1 = 0;
+            frame_1 |= ((uint32_t)_power) << 28;
+            frame_1 |= ((uint32_t)_general) << 24;
+            frame_1 |= ((uint32_t)((~_power) & 0xF)) << 20;
+            frame_1 |= ((uint32_t)((~_general) & 0xF)) << 16;
+            frame_1 |= ((uint32_t)_temperature) << 12;
+            frame_1 |= ((uint32_t)_vent_mode) << 8;
+            frame_1 |= ((uint32_t)((~_temperature) & 0xF)) << 4;
+            frame_1 |= ((uint32_t)((~_vent_mode) & 0xF)) << 0;
+
+            uint32_t frame_2 = 0x738CB24D;
+
+            ESP_LOGD("ir", "sending frame_1=0x%08X", frame_1);
+            ESP_LOGD("ir", "sending frame_2=0x%08X", frame_2);
+            
+
+            auto call = id(ir_transmitter).transmit();
+            auto *data = call.get_data();
+            data->set_carrier_frequency(38000);
+
+            //make raw frame to send
+            data->mark(6600);
+            data->space(7400);
+
+            for (int i = 31; i >= 0; i--) {
+                data->mark(650);
+                if (frame_1 & (1UL << i)) data->space(3300);
+                else data->space(1300);
+            }
+            for (int i = 31; i >= 0; i--) {
+                data->mark(650);
+                if (frame_2 & (1UL << i)) data->space(3300);
+                else data->space(1300);
+            }
+
+            data->mark(700);
+            data->space(7400);
+            data->mark(700);
+
+            call.perform();
+
+
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 50
+  id: ir_transmitter
+
+
+globals:
+  - id: valid_received
+    type: bool
+    initial_value: 'false'
+  - id: power_received
+    type: bool
+    initial_value: 'false'
+  - id: nightmode_received
+    type: bool
+    initial_value: 'false'
+  - id: ventilator_auto_received
+    type: bool
+    initial_value: 'false'
+  - id: ventilator_speed_received
+    type: uint8_t
+    initial_value: 'false'
+  - id: temperature_received
+    type: uint8_t
+    initial_value: '0'
+  - id: mode_received
+    type: std::string
+    initial_value: '"unknown"'
+
+
+remote_receiver:
+  pin: GPIO14
+  on_raw:
+    then:
+      - lambda: |-
+          uint32_t frames[2];
+          int frame_count = 0;
+          uint32_t value = 0;
+          int bits = 0;
+          bool started = false;
+          
+          if(x.size() != 134) {
+            return;
+          }
+
+          for (size_t i = 0; i < x.size()-1; i++) {
+
+            int t = abs(x[i]);
+
+            //startpause
+            if (t > 7000) {
+              started = true;
+              value = 0;
+              bits = 0;
+              continue;
+            }
+
+            if (!started)
+              continue;
+
+            int mark = x[i];
+            int space = x[i+1];
+
+            if (mark < -500 && mark > -900) {
+
+              int s = abs(space);
+
+              if (s > 2500)
+                value |= 1 << (31 - bits);
+
+              bits++;
+              i++;
+
+              if (bits == 32) {
+                frames[frame_count] = value;
+                frame_count++;
+                if(frame_count >= sizeof(frames)) frame_count = 0;
+                value = 0;
+                bits = 0;
+              }
+            }
+          }
+
+          std::string result="";
+
+          for (auto v: frames) {
+            char buf[12];
+            sprintf(buf,"0x%08X,",v);
+            result += buf;
+          }
+          ESP_LOGD("ir","received result=%s", result.c_str());
+
+          id(valid_received) = true;
+
+          uint8_t _power = ((frames[0] >> 28) & 0xF);
+          if(_power == 0x4) {
+            id(power_received) = false;
+          } else if(_power == 0xC) {
+            id(power_received) = true;
+          } else {
+            id(power_received) = false;
+          }
+
+          uint8_t _general = ((frames[0] >> 24) & 0xF);
+          if(_general & 0x8) {
+            id(nightmode_received) = true;
+          } else {
+            id(nightmode_received) = false;
+          }
+          if(_general & 0x4) {
+            id(ventilator_auto_received) = false;
+          } else {
+            id(ventilator_auto_received) = true;
+          }
+          bool _dehumidify;
+          if(_general & 0x2) {
+            _dehumidify = false;
+          } else {
+            _dehumidify = true;
+          }
+
+          uint8_t _temperature = ((frames[0] >> 12) & 0xF);
+          id(temperature_received) = _temperature + 16;
+          
+          uint8_t _ventilator_speed = ((frames[0] >> 8) & 0xF);
+          _ventilator_speed >>= 2;
+          if(_ventilator_speed == 0x00) {
+            id(ventilator_speed_received) = 1;
+          } else if(_ventilator_speed & 0x1) {
+            id(ventilator_speed_received) = 2;
+          } else if(_ventilator_speed & 0x2) {
+            id(ventilator_speed_received) = 3;
+          }
+
+          uint8_t _mode = ((frames[0] >> 8) & 0x3);
+          if(_mode == 0x00) {
+            if(_dehumidify == false) {
+              id(mode_received) = "auto";
+            } else {
+              id(mode_received) = "dehumidify";
+            }
+          } else if(_mode == 0x1) {
+            id(mode_received) = "cool";
+          } else if(_mode == 0x2) {
+            id(mode_received) = "heat";
+          } else if(_mode == 0x3) {
+            id(mode_received) = "recirculation";
+          }
+
+          _mode = _mode | (_ventilator_speed << 2);
+
+          uint8_t _inverted_0 = ((frames[0] >> 20) & 0xF);
+          if(_inverted_0 != ((~_power) & 0xF)) {
+            id(valid_received) = false;
+            ESP_LOGD("ir","received invert 0 invalid");
+          }
+
+          uint8_t _inverted_1 = ((frames[0] >> 16) & 0xF);
+          if(_inverted_1 != ((~_general) & 0xF)) {
+            id(valid_received) = false;
+            ESP_LOGD("ir","received invert 1 invalid");
+          }
+
+          uint8_t _inverted_2 = ((frames[0] >> 4) & 0xF);
+          if(_inverted_2 != ((~_temperature) & 0xF)) {
+            id(valid_received) = false;
+            ESP_LOGD("ir","received invert 2 invalid");
+          }
+
+          uint8_t _inverted_3 = ((frames[0] >> 0) & 0xF);
+          if(_inverted_3 != ((~_mode) & 0xF)) {
+            id(valid_received) = false;
+            ESP_LOGD("ir","received invert 3 invalid");
+          }
+
+      - if:
+          condition:
+            lambda: 'return id(valid_received);'
+          then:
+            - homeassistant.event:
+                event: esphome.fwx4_receive_ir
+                data:
+                  power: !lambda |-
+                    return id(power_received);
+                  nightmode: !lambda |-
+                    return id(nightmode_received);
+                  ventilator_auto: !lambda |-
+                    return id(ventilator_auto_received);
+                  ventilator_speed: !lambda |-
+                    return id(ventilator_speed_received);
+                  temperature: !lambda |-
+                    return id(temperature_received);
+                  mode: !lambda |-
+                    return id(mode_received);
+

@@ -1,0 +1,17 @@
+fwx4_send_ir:
+  alias: FWX4 IR senden
+  sequence:
+  - data:
+      power: '{{ is_state(''input_boolean.fwx4_ac_power'', ''on'') }}'
+      nightmode: '{{ is_state(''input_boolean.fwx4_nightmode'', ''on'') }}'
+      ventilator_auto: '{{ is_state(''input_boolean.fwx4_ventilator_auto'', ''on'')
+        }}'
+      ventilator_speed: '{{ states(''input_number.fwx4_ventilator_speed'') | int }}'
+      temperature: '{{ states(''input_number.fwx4_temperature'') | int }}'
+      mode: '{% set m = states(''input_select.fwx4_mode'') %} {% if m == ''Heizen''
+        %}heat {% elif m == ''Kühlen'' %}cool {% elif m == ''Entfeuchten'' %}dehumidify
+        {% elif m == ''Umluft'' %}recirculation {% elif m == ''Auto'' %}auto {% endif
+        %}
+
+        '
+    action: esphome.fwx4_ir_transmitter_fwx4_send_ir

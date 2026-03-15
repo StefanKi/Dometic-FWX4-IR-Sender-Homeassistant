@@ -1,0 +1,62 @@
+type: grid
+cards:
+  - type: heading
+    heading: Klimaanlage
+    heading_style: title
+  - type: tile
+    entity: input_boolean.fwx4_ac_power
+    name: Eingeschaltet
+    vertical: false
+    features:
+      - type: toggle
+    features_position: inline
+  - type: tile
+    entity: input_select.fwx4_mode
+    name: Modus
+    vertical: false
+    features:
+      - type: select-options
+    features_position: inline
+  - type: tile
+    entity: input_number.fwx4_temperature
+    name: Temperatur
+    vertical: false
+    features:
+      - type: numeric-input
+        style: buttons
+    features_position: inline
+  - type: tile
+    entity: input_boolean.fwx4_ventilator_auto
+    name: Ventilator Auto
+    vertical: false
+    features:
+      - type: toggle
+    features_position: inline
+  - type: tile
+    entity: input_number.fwx4_ventilator_speed
+    name: Ventilator Stufe
+    vertical: false
+    features:
+      - type: numeric-input
+        style: buttons
+    features_position: inline
+  - type: tile
+    entity: input_boolean.fwx4_nightmode
+    name: Nachtmodus
+    vertical: false
+    features:
+      - type: toggle
+    features_position: inline
+  - show_name: true
+    show_icon: true
+    type: button
+    entity: script.fwx4_send_ir
+    name: Senden
+    icon: mdi:send
+    tap_action:
+      action: call-service
+      service: script.fwx4_send_ir
+    show_state: false
+    grid_options:
+      columns: 12
+      rows: 2
