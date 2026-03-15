@@ -19,7 +19,7 @@ See [**fwx4-ir-transmitter.yaml**](fwx4-ir-transmitter.yaml)
 
 ## Script in Homeassistant
 Needed for start sending the infrared signal after clicking the button.
-See [**scripts.yaml**](**scripts.yaml**)
+See [**scripts.yaml**](scripts.yaml)
 
 ## Helper in Homeassistant
 |name|type|range
@@ -33,7 +33,7 @@ See [**scripts.yaml**](**scripts.yaml**)
 
 ## Dashboard
 Just arrage and use the helpers as you want.
-Example see in [**dashboard.yaml**](**dashboard.yaml**)
+Example see in [**dashboard.yaml**](dashboard.yaml)
 
 <img src="pics/dashboard.jpg" alt="" width="600"/>
 
