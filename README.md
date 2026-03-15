@@ -9,6 +9,12 @@ The sender sits on the right bottom and targets to the receiver of the FWX4.
 
 <img src="pics/sender.png" alt="" width="600"/>
 
+## Basics
+The helpers are shown on the Dashboard.
+The Button starts the Script that greps the data and sends an action to the ESP.
+The ESP has the firmware from ESPHome Builder on it.
+
+
 ## Code for ESPHome Builder
 See **fwx4-ir-transmitter.yaml**
 
